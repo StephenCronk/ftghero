@@ -42,13 +42,15 @@
 
   <!-- ============ NEW HERO (cinematic full-bleed video) ============ -->
   <section class="hero" aria-labelledby="hero-heading">
-    <video
-      class="hero-video"
-      autoplay muted loop playsinline preload="auto"
-      poster="assets/hero-poster.jpg">
-      <source src="assets/torontovid720.webm" type="video/webm" />
-      <source src="assets/torontovid720.mp4" type="video/mp4" />
-    </video>
+    <div class="hero-media" aria-hidden="true">
+      <video
+        class="hero-video"
+        autoplay muted loop playsinline preload="auto"
+        poster="assets/hero-poster.jpg">
+        <source src="assets/torontovid720.webm" type="video/webm" />
+        <source src="assets/torontovid720.mp4" type="video/mp4" />
+      </video>
+    </div>
     <div class="hero-overlay" aria-hidden="true"></div>
 
     <div class="hero-content">
@@ -72,9 +74,9 @@
       </div>
 
       <ul class="hero-stats reveal" style="--d:560ms" aria-label="Our impact">
-        <li><span class="stat-num">1,849</span><span class="stat-label">Patients treated</span></li>
-        <li><span class="stat-num">4,623</span><span class="stat-label">Hours volunteered</span></li>
-        <li><span class="stat-num">$695,337</span><span class="stat-label">Saved Toronto Public Health</span></li>
+        <li><span class="stat-num" data-count="1849">1,849</span><span class="stat-label">Patients treated</span></li>
+        <li><span class="stat-num" data-count="4623">4,623</span><span class="stat-label">Hours volunteered</span></li>
+        <li><span class="stat-num" data-count="695337" data-prefix="$">$695,337</span><span class="stat-label">Saved Toronto Public Health</span></li>
       </ul>
     </div>
 
@@ -88,9 +90,9 @@
   <main id="main">
     <section class="news" aria-labelledby="news-heading">
       <div class="news-inner">
-        <h2 id="news-heading" class="news-heading">Featured news in dentistry</h2>
+        <h2 id="news-heading" class="news-heading news-reveal">Featured news in dentistry</h2>
 
-        <div class="news-tabs">
+        <div class="news-tabs news-reveal" style="--d:120ms">
           <ul class="news-tablist" role="tablist" aria-label="Featured news articles">
             <li class="news-tab is-active" role="tab" aria-selected="true">
               <span class="news-tab-title">More dental patients, providers baffled by lack of consistency in national plan&rsquo;s coverage</span>
@@ -191,6 +193,73 @@
       const open = document.body.classList.toggle('nav-open');
       toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
     });
+
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+
+    // ---- Stat count-up (fires once when the stats scroll into view) ----
+    const stats = document.querySelectorAll('.stat-num[data-count]');
+    const fmt = (n) => n.toLocaleString('en-CA');
+    function countUp(el) {
+      const target = +el.dataset.count;
+      const prefix = el.dataset.prefix || '';
+      const dur = 1600;
+      let start = null;
+      function tick(t) {
+        if (start === null) start = t;
+        const p = clamp((t - start) / dur, 0, 1);
+        const eased = 1 - Math.pow(1 - p, 3); // ease-out cubic
+        el.textContent = prefix + fmt(Math.round(target * eased));
+        if (p < 1) requestAnimationFrame(tick);
+      }
+      requestAnimationFrame(tick);
+    }
+    if (!reduceMotion && 'IntersectionObserver' in window && stats.length) {
+      const statObs = new IntersectionObserver((entries, obs) => {
+        entries.forEach((e) => {
+          if (e.isIntersecting) { countUp(e.target); obs.unobserve(e.target); }
+        });
+      }, { threshold: 0.6 });
+      stats.forEach((el) => statObs.observe(el));
+    }
+
+    // ---- Scroll-reveal for the news section ----
+    const reveals = document.querySelectorAll('.news-reveal');
+    if (reduceMotion || !('IntersectionObserver' in window)) {
+      reveals.forEach((el) => el.classList.add('in-view'));
+    } else {
+      const revObs = new IntersectionObserver((entries, obs) => {
+        entries.forEach((e) => {
+          if (e.isIntersecting) { e.target.classList.add('in-view'); obs.unobserve(e.target); }
+        });
+      }, { threshold: 0.15 });
+      reveals.forEach((el) => revObs.observe(el));
+    }
+
+    // ---- Parallax + hero text fade on scroll (rAF-coalesced, passive) ----
+    if (!reduceMotion) {
+      const hero = document.querySelector('.hero');
+      const media = document.querySelector('.hero-media');
+      const content = document.querySelector('.hero-content');
+      const cue = document.querySelector('.scroll-cue');
+      let ticking = false;
+      function onScroll() {
+        const y = window.scrollY;
+        const h = hero.offsetHeight;
+        if (y <= h) {
+          media.style.transform = 'translate3d(0,' + (y * 0.3) + 'px,0)';
+          const p = clamp(y / (h * 0.7), 0, 1);
+          content.style.opacity = (1 - p).toFixed(3);
+          content.style.transform = 'translateY(' + (-p * 40) + 'px)';
+          if (cue) cue.style.opacity = clamp(1 - y / 120, 0, 1).toFixed(3);
+        }
+        ticking = false;
+      }
+      window.addEventListener('scroll', () => {
+        if (!ticking) { ticking = true; requestAnimationFrame(onScroll); }
+      }, { passive: true });
+      onScroll();
+    }
   </script>
 </body>
 </html>
